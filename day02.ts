@@ -63,14 +63,17 @@ function parseGameInfo(gameLine: string): [number, TriColor] {
 }
 
 function runDay2Logic(input: string): [number, number] {
-  const gameSum: number = input.split('\n').reduce((sumPossible, gameLine) => {
-    const [id, maxCubes] = parseGameInfo(gameLine);
+  const gameData = input.split('\n').map(gameLine => parseGameInfo(gameLine));
+  const gameSum: number = gameData.reduce((sumPossible, [id, maxCubes]) => {
     return (maxCubes.red <= day2Criteria.red && maxCubes.green <= day2Criteria.green && maxCubes.blue <= day2Criteria.blue)
       ? sumPossible + id
       : sumPossible;
   }, 0)
+  const powerSum: number = gameData.reduce((sumPower, [_, maxCubes]) => {
+    return sumPower + maxCubes.red * maxCubes.green * maxCubes.blue;
+  }, 0);
 
-  return [gameSum, 0];
+  return [gameSum, powerSum];
 }
 
 const day2TestData =
@@ -89,7 +92,7 @@ const day2Criteria: TriColor = {
 function day2Test(): boolean {
   console.log("\nTEST\n");
 
-  const answerKey = [8, 0];
+  const answerKey = [8, 2286];
 
   const answer = runDay2Logic(day2TestData);
 
