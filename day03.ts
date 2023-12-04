@@ -11,48 +11,65 @@ type PartNumber = {
   posEnd: XYCoords
 };
 
-function isPartNumber(posStart: XYCoords, posEnd: XYCoords, symbols: Array<XYCoords>): boolean {
-  return symbols.filter(symbol => 
-      symbol.y >= posStart.y - 1 
-      && symbol.y <= posStart.y + 1 
-      && symbol.x >= posStart.x - 1 
-      && symbol.x <= posEnd.x
-    ).length > 0;
-}
+type Part = {
+  symbol: string,
+  position: XYCoords,
+  partNumbers: Array<PartNumber>
+};
 
 function runDay3Logic(input: string): [number, number] {
   const schematicRows = input.split("\n");
   const result: [number, number] = [0, 0];
 
   const digitRegex = /\d\d*/g;
-  const partNums: Array<PartNumber> = [];
   const symbolRegex = /[^.\w\s]/g;
-  const symbols: Array<XYCoords> = [];
+  const parts: Array<Part> = [];
   let matchResult;
+
+  // Find all symbols
   schematicRows.forEach((row, rowIndex) => {
     while ((matchResult = symbolRegex.exec(row)) !== null) {
-      symbols.push({
-        x: matchResult.index,
-        y: rowIndex
+      parts.push({
+        symbol: matchResult[0],
+        position: { x: matchResult.index, y: rowIndex},
+        partNumbers: []
       });
     }
   });
   schematicRows.forEach((row, rowIndex) => {
     while ((matchResult = digitRegex.exec(row)) !== null) {
       const posStart = { x: matchResult.index, y: rowIndex }, 
-        posEnd = { x: digitRegex.lastIndex, y: rowIndex };
-      if (isPartNumber(posStart, posEnd, symbols)) {
-        // partNums.push({
-        //   value: Number(matchResult[0]),
-        //   posStart,
-        //   posEnd
-        // });
-        result[0] += Number(matchResult[0]);
+        posEnd = { x: digitRegex.lastIndex, y: rowIndex },
+        value = Number(matchResult[0]);
+      // console.log(value);
+
+      // assumption: Each number is adjacent to at most one symbol
+      const partMatch = parts.find(part => 
+        part.position.y >= posStart.y - 1 
+        && part.position.y <= posStart.y + 1 
+        && part.position.x >= posStart.x - 1 
+        && part.position.x <= posEnd.x
+      );
+      // console.log(partMatch)
+
+      if (partMatch !== undefined) {
+        partMatch.partNumbers.push({
+          value,
+          posStart,
+          posEnd
+        })
+        result[0] += value;
       }
     } 
   });
+  
+  parts.forEach(part => {
+    if (part.symbol === '*' && part.partNumbers.length === 2) {
+      result[1] += part.partNumbers[0].value * part.partNumbers[1].value
+    }
+  })
 
-  // console.log(symbols, partNums);
+  // console.log(parts);
 
   return result;
 }
@@ -72,7 +89,7 @@ const day3TestData =
 function day3Test(): boolean {
   console.log("\nTEST\n");
 
-  const answerKey = [4361, 0];
+  const answerKey = [4361, 467835];
 
   const answer = runDay3Logic(day3TestData);
 
