@@ -16,9 +16,9 @@ function newTriColor(): TriColor {
 
 function getMaxTriColor(left: TriColor, right: TriColor): TriColor {
   return {
-    red: left.red > right.red ? left.red : right.red,
-    green: left.green > right.green ? left.green : right.green,
-    blue: left.blue > right.blue ? left.blue : right.blue,
+    red: Math.max(left.red, right.red),
+    green: Math.max(left.green, right.green),
+    blue: Math.max(left.blue, right.blue),
   }
 }
 
