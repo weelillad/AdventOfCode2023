@@ -3,7 +3,8 @@ import { readFileSync } from "node:fs";
 type Card = {
   id: number
   winningNums: Set<number>,
-  scratchNums: Set<number>
+  scratchNums: Set<number>,
+  wonScratchCards?: Array<number>
 };
 
 function parseCard(cardData: string): Card {
@@ -30,14 +31,39 @@ function runDay4Logic(input: string): [number, number] {
   const cardsStr = input.split("\n");
   const result: [number, number] = [0, 0];
 
+  const cards: Array<Card> = [];
+
   for (const cardStr of cardsStr) {
     const card: Card = parseCard(cardStr);
-    // console.log(card);
     const numWins = countWins(card);
+
+    const wonScratchCards = [];
+    for(let i = 1; i <= numWins; i++) {
+      wonScratchCards.push(card.id + i);
+    }
+    card.wonScratchCards = wonScratchCards;
+    // console.log(card);
+
+    cards.push(card);
+
+    // Part 1 answer
     const score = numWins > 0 ? Math.pow(2, numWins - 1) : 0;
     // console.log(`Card ${card.id}: ${score} points`);
     result[0] += score;
   }
+
+  // Part 2 answer
+  // Skip index 0 so that card ID and array index are the same
+  const scratchcardIdCount = new Array(cards.length + 1);
+  scratchcardIdCount[0] = 0;
+  scratchcardIdCount.fill(1, 1);
+  scratchcardIdCount.forEach((count, id) => {
+    if (count === 0) return;
+    result[1] += count;
+    cards[id - 1].wonScratchCards?.forEach(wonCardId => {
+      scratchcardIdCount[wonCardId] += count;
+    });
+  });
 
   return result;
 }
@@ -53,7 +79,7 @@ Card 6: 31 18 13 56 72 | 74 77 10 23 35 67 36 11`;
 function day4Test(): boolean {
   console.log("\nTEST\n");
 
-  const answerKey = [13, 0];
+  const answerKey = [13, 30];
 
   const answer = runDay4Logic(day4TestData);
 
