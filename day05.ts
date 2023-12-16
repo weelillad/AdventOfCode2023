@@ -1,15 +1,21 @@
 import { readFileSync } from "node:fs";
 
+type NumRange = {
+  start: number,
+  length: number
+};
+
 type CategoryMapRange = {
-  destRangeStart: number,
-  srcRangeStart: number,
-  rangeLength: number
+  destStart: number,
+  srcStart: number,
+  length: number
 };
 
 type CategoryMap = Array<CategoryMapRange>;
 
 type Almanac = {
   seedList: Array<number>,
+  seedRangeList: Array<NumRange>,
   seedToSoilMap: CategoryMap,
   soilToFertilizerMap: CategoryMap,
   fertilizerToWaterMap: CategoryMap,
@@ -19,13 +25,8 @@ type Almanac = {
   humidityToLocationMap: CategoryMap
 };
 
-function parseSeedList(input: string): Array<number> {
-  const [_, seeds] = input.split(': ');
-  return seeds.split(' ').map(val => Number(val));
-}
-
 function sortCategoryMap(unsortedMap: CategoryMap): CategoryMap {
-  return unsortedMap.sort((a, b) => a.srcRangeStart - b.srcRangeStart);
+  return unsortedMap.sort((a, b) => a.srcStart - b.srcStart);
 }
 
 function parseMap(mapSegment: string): CategoryMap {
@@ -34,19 +35,37 @@ function parseMap(mapSegment: string): CategoryMap {
   return sortCategoryMap(lines.map(line => {
     const numbers = line.split(' ');
     return {
-      destRangeStart: Number(numbers[0]),
-      srcRangeStart: Number(numbers[1]),
-      rangeLength: Number(numbers[2])
+      destStart: Number(numbers[0]),
+      srcStart: Number(numbers[1]),
+      length: Number(numbers[2])
     };
   }));
+}
+
+function convertSeedListToSeedRangeList(seedList: Array<number>): Array<NumRange> {
+  const seedRangeList: Array<NumRange> = [];
+  for (let i = 1; i < seedList.length; i += 2) {
+    seedRangeList.push({
+      start: seedList[i-1],
+      length: seedList[i]
+    });
+  }
+  return seedRangeList;
+}
+
+function parseSeedList(input: string): Array<number> {
+  const [_, seeds] = input.split(': ');
+  return seeds.split(' ').map(val => Number(val));
 }
 
 function parseAlmanac(almanacSegments: Array<string>): Almanac {
   if (almanacSegments.length !== 8) {
     throw new Error('Input error: missing map?');
   }
+  const seedList = parseSeedList(almanacSegments[0]);
   return {
-    seedList: parseSeedList(almanacSegments[0]),
+    seedList,
+    seedRangeList: convertSeedListToSeedRangeList(seedList),
     seedToSoilMap: parseMap(almanacSegments[1]),
     soilToFertilizerMap: parseMap(almanacSegments[2]),
     fertilizerToWaterMap: parseMap(almanacSegments[3]),
@@ -57,12 +76,57 @@ function parseAlmanac(almanacSegments: Array<string>): Almanac {
   };
 }
 
+function getCoveringRange(categoryMap: CategoryMap, inputNum: number): CategoryMapRange | undefined {
+  return categoryMap.find(range => inputNum >= range.srcStart && inputNum < range.srcStart + range.length);
+}
+
 function traverseCategoryMap(categoryMap: CategoryMap, inputNum: number): number {
-  const coveringRange = categoryMap.find(range => inputNum >= range.srcRangeStart && inputNum < range.srcRangeStart + range.rangeLength);
-  if (coveringRange !== undefined) {
-    return coveringRange.destRangeStart + (inputNum - coveringRange.srcRangeStart);
+  const coveringRange = getCoveringRange(categoryMap, inputNum);
+  return coveringRange !== undefined
+    ? coveringRange.destStart + (inputNum - coveringRange.srcStart)
+    : inputNum;
+}
+
+function getNextDestRange(categoryMap: CategoryMap, srcRange: NumRange): NumRange {
+  const coveringRange = getCoveringRange(categoryMap, srcRange.start);
+  if (coveringRange === undefined) {
+    // generate default range definition to be returned
+    const nextRange = categoryMap.find(mapRange => mapRange.srcStart > srcRange.start);
+    return { 
+      start: srcRange.start, 
+      length: nextRange !== undefined
+        ? nextRange.srcStart - srcRange.start
+        : srcRange.length 
+    };
   }
-  return inputNum;
+  const rangeOffset = srcRange.start - coveringRange.srcStart;
+  return {
+    start: coveringRange.destStart + rangeOffset,
+    length: Math.min(coveringRange.length - rangeOffset, srcRange.length)
+  };
+}
+
+function getDestRanges(categoryMap: CategoryMap, srcRanges: Array<NumRange>): Array<NumRange> {
+  const destRanges: Array<NumRange> = [];
+  srcRanges.forEach(range => {
+    let destRange = getNextDestRange(categoryMap, range);
+    // console.log('Source range %o, 1st dest range %o', range, destRange)
+    destRanges.push(destRange);
+    let remainingRange = {
+      start: range.start + destRange.length,
+      length: range.length - destRange.length
+    };
+    while (remainingRange.length > 0) {
+        destRange = getNextDestRange(categoryMap, remainingRange);
+        // console.log('Leftover range %o, next dest range %o', remainingRange, destRange)
+        destRanges.push(destRange);
+        remainingRange = {
+          start: remainingRange.start + destRange.length,
+          length: remainingRange.length - destRange.length
+        };
+    }
+  });
+  return destRanges;
 }
 
 function runDay5Logic(input: string): [number, number] {
@@ -70,7 +134,7 @@ function runDay5Logic(input: string): [number, number] {
   const result: [number, number] = [Number.MAX_VALUE, 0];
 
   const almanac: Almanac = parseAlmanac(almanacSegments);
-  //console.log(almanac);
+  // console.log(almanac);
 
   // Part 1 answer
   almanac.seedList.forEach(seed => {
@@ -85,6 +149,27 @@ function runDay5Logic(input: string): [number, number] {
 
     result[0] = Math.min(result[0], location);
   })
+
+  // Part 2 answer
+  /*
+    A range of seeds will be mapped into one or more ranges of soils, this then recurses across the rest of the 7 maps
+    The lowest location then has to correspond to the start of a range, because all subsequent numbers in the range are larger
+  */
+  // console.log('Seed To Soil');
+  let destRanges = getDestRanges(almanac.seedToSoilMap, almanac.seedRangeList);
+  // console.log('Soil To Fertilizer');
+  destRanges = getDestRanges(almanac.soilToFertilizerMap, destRanges);
+  // console.log('Fertilizer To Water');
+  destRanges = getDestRanges(almanac.fertilizerToWaterMap, destRanges);
+  // console.log('Water To Light');
+  destRanges = getDestRanges(almanac.waterToLightMap, destRanges);
+  // console.log('Light To Temp');
+  destRanges = getDestRanges(almanac.lightToTempMap, destRanges);
+  // console.log('Temp To Humidity');
+  destRanges = getDestRanges(almanac.tempToHumidityMap, destRanges);
+  // console.log('Humidity To Location');
+  destRanges = getDestRanges(almanac.humidityToLocationMap, destRanges);
+  result[1] = Math.min(...destRanges.map(range => range.start));
 
   return result;
 }
@@ -127,7 +212,7 @@ humidity-to-location map:
 function day5Test(): boolean {
   console.log("\nTEST\n");
 
-  const answerKey = [35, 0];
+  const answerKey = [35, 46];
 
   const answer = runDay5Logic(day5TestData);
 
