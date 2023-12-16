@@ -7,7 +7,7 @@ type Hand = {
   handType: HandType;
 }
 
-enum HandType {
+export enum HandType {
   HIGHCARD,
   ONEPAIR,
   TWOPAIR,
@@ -18,41 +18,64 @@ enum HandType {
 }
 
 function getType(cards: string): HandType {
-  assert(cards.length === 5, `Found hand that doesn't have 5 cards: ${cards}`);
+  assert(cards.length === 5, `Found hand that doesn't have 5 cards`);
   const countFirstCard = cards.match(new RegExp(`${cards.at(0)}`, 'g'))?.length;
-  if (countFirstCard === 5) return HandType['FIVEOFAKIND'];
-  else if (countFirstCard === 4) return HandType['FOUROFAKIND'];
+  if (countFirstCard === 5) return HandType.FIVEOFAKIND;
+  else if (countFirstCard === 4) return HandType.FOUROFAKIND;
   else if (countFirstCard === 3) {
     const otherCards = cards.match(new RegExp(`[^${cards.at(0)}]`, 'g')) ?? [];
     // console.log(otherCards);
-    if (otherCards[0] === otherCards[1]) return HandType['FULLHOUSE'];
-    else return HandType['THREEOFAKIND'];
+    assert(otherCards.length === 2, `Found odd hand`);
+    if (otherCards[0] === otherCards[1]) return HandType.FULLHOUSE;
+    else return HandType.THREEOFAKIND;
   }
   else if (countFirstCard === 2) {
     const otherCards = cards.match(new RegExp(`[^${cards.at(0)}]`, 'g')) ?? [];
     // console.log(otherCards);
-    if (otherCards[0] === otherCards[1] && otherCards[0] === otherCards[2]) return HandType['FULLHOUSE'];
-    else if (otherCards[0] === otherCards[1] || otherCards[1] === otherCards[2] || otherCards[0] === otherCards[2]) return HandType['TWOPAIR'];
-    else return HandType['ONEPAIR'];
+    assert(otherCards.length === 3, `Found odd hand`);
+    if (otherCards[0] === otherCards[1] && otherCards[0] === otherCards[2]) return HandType.FULLHOUSE;
+    else if (otherCards[0] === otherCards[1] || otherCards[1] === otherCards[2] || otherCards[0] === otherCards[2]) return HandType.TWOPAIR;
+    else return HandType.ONEPAIR;
   }
   else {
     const countSecondCard = cards.match(new RegExp(`${cards.at(1)}`, 'g'))?.length;
-    if (countSecondCard === 4) return HandType['FOUROFAKIND'];
-    else if (countSecondCard === 3) return HandType['THREEOFAKIND'];
+    if (countSecondCard === 4) return HandType.FOUROFAKIND;
+    else if (countSecondCard === 3) return HandType.THREEOFAKIND;
     else if (countSecondCard === 2) {
+      // Get remaining cards that don't match either the 1st or 2nd card of the hand
       const otherCards = cards.substring(2).match(new RegExp(`[^${cards.at(1)}]`, 'g')) ?? [];
       // console.log(otherCards);
-      if (otherCards[0] === otherCards[1]) return HandType['TWOPAIR'];
-      else return HandType['ONEPAIR'];
+      assert(otherCards.length === 2, `Found odd hand`);
+      if (otherCards[0] === otherCards[1]) return HandType.TWOPAIR;
+      else return HandType.ONEPAIR;
     }
     else {
       const countThirdCard = cards.match(new RegExp(`${cards.at(2)}`, 'g'))?.length;
-      if (countThirdCard === 3) return HandType['THREEOFAKIND'];
-      else if (countThirdCard === 2) return HandType['ONEPAIR'];
-      else if (cards.at(3) === cards.at(4)) return HandType['ONEPAIR'];
-      else return HandType['HIGHCARD'];
+      if (countThirdCard === 3) return HandType.THREEOFAKIND;
+      else if (countThirdCard === 2) return HandType.ONEPAIR;
+      else if (cards.at(3) === cards.at(4)) return HandType.ONEPAIR;
+      else return HandType.HIGHCARD;
     }
   }
+}
+
+export function getTypePart2(cards: string): HandType {
+  if (!cards.includes('J')) return getType(cards);
+
+  // Convert J to most frequently occuring card, because that is guaranteed to maximise the utility of J
+  const cardSet = new Set(cards.split(''));
+  // In the case of 'JJJJJ', will substitute into Aces for purpose of HandType calculation
+  let mostFrequentCard = 'A', mostFrequentCount = 0;
+  cardSet.forEach(key => {
+    if (key === 'J') return;
+    const keyCount = cards.match(new RegExp(key, 'g'))?.length ?? 0;
+    if (keyCount > mostFrequentCount) {
+      mostFrequentCard = key;
+      mostFrequentCount = keyCount;
+    }
+  });
+  // console.log(cards);
+  return getType(cards.replace(/J/g, mostFrequentCard));
 }
 
 function getCardValue(card: string): number {
@@ -82,16 +105,41 @@ function getCardValue(card: string): number {
   return value;
 }
 
-function cardCompare(lhs: Hand, rhs: Hand): number {
-  let difference = getCardValue(lhs.cards[0]) - getCardValue(rhs.cards[0]);
+export function getCardValuePart2(card: string): number {
+  return card === 'J'
+    ? 1
+    : getCardValue(card);
+}
+
+export function cardCompare(lhs: string, rhs: string, cardValueFn: (card: string) => number): number {
+  let difference = cardValueFn(lhs[0]) - cardValueFn(rhs[0]);
   for (let i = 1; i < 5 && difference === 0; i++) {
-    difference = getCardValue(lhs.cards[i]) - getCardValue(rhs.cards[i]);
+    difference = cardValueFn(lhs[i]) - cardValueFn(rhs[i]);
   }
   return difference;
 }
 
+function getWinnings(hands: Array<Hand>, cardValueFn: (card: string) => number): number {
+  let winnings = 0;
+
+  hands.sort((a, b) => {
+    // console.log('A: %s %s, B: %s %s', a.cards, a.handType, b.cards, b.handType)
+    const typeCompare = a.handType - b.handType;
+    return typeCompare !== 0
+      ? typeCompare
+      : cardCompare(a.cards, b.cards, cardValueFn);
+  });
+  // console.log(hands);
+  
+  hands.forEach((hand, index) => {
+    winnings += hand.bid * (index + 1);
+  });
+  
+  return winnings;
+}
+
 function runDay7Logic(input: string): [number, number] {
-  const hands = input.split("\n").map(line => {
+  const hands: Array<Hand> = input.split("\n").map(line => {
     const [cards, bidStr] = line.split(' ');
     return {
       cards,
@@ -99,20 +147,19 @@ function runDay7Logic(input: string): [number, number] {
       handType: getType(cards)
     };
   });
+
   const result: [number, number] = [0, 0];
 
   // Part 1 answer
-  hands.sort((a, b) => {
-    // console.log('A: %s %s, B: %s %s', a.cards, a.handType, b.cards, b.handType)
-    const typeCompare = a.handType - b.handType;
-    return typeCompare !== 0
-      ? typeCompare
-      : cardCompare(a, b);
+  result[0] = getWinnings(hands, getCardValue);
+
+  // Part 2 answer
+  // console.log(hands);
+  hands.forEach(hand => {
+    hand.handType = getTypePart2(hand.cards);
   });
   // console.log(hands);
-  hands.forEach((hand, index) => {
-    result[0] += hand.bid * (index + 1);
-  });
+  result[1] = getWinnings(hands, getCardValuePart2);
 
   return result;
 }
@@ -127,7 +174,7 @@ QQQJA 483`;
 function day7Test(): boolean {
   console.log("\nTEST\n");
 
-  const answerKey = [6440, 0];
+  const answerKey = [6440, 5905];
 
   const answer = runDay7Logic(day7TestData);
   
