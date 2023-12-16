@@ -17,7 +17,7 @@ function findNumOfWinningWays(race: Race): number {
   // Alter the math so that if either root is an integer, get the adjecent integer that has a positive result
   const minTime = Math.floor((-race.time + Math.sqrt(discriminant)) / (2 * -1)) + 1;
   const maxTime = Math.ceil((-race.time - Math.sqrt(discriminant)) / (2 * -1)) - 1;
-  console.log(maxTime, minTime);
+  // //console.log(maxTime, minTime);
   return maxTime - minTime + 1;
 
 }
@@ -31,14 +31,22 @@ function runDay6Logic(input: string): [number, number] {
   for (let i = 0; i < times.length; i++) {
     races.push({ time: times[i], distance: distances[i] });
   }
-  console.log(races);
+  //console.log(races);
 
   const result: [number, number] = [1, 0];
 
   // Part 1 answer
   races.forEach(race => {
     result[0] *= findNumOfWinningWays(race);
-  })  
+  })
+
+  // Part 2 answer
+  const bigRace = {
+    time: Number(timeString.substring(timeString.search(/\d/)).replaceAll(/\s/g, '')),
+    distance: Number(distString.substring(distString.search(/\d/)).replaceAll(/\s/g, ''))
+  }
+  //console.log(bigRace);
+  result[1] = findNumOfWinningWays(bigRace);
 
   return result;
 }
@@ -50,7 +58,7 @@ Distance:  9  40  200`;
 function day6Test(): boolean {
   console.log("\nTEST\n");
 
-  const answerKey = [288, 0];
+  const answerKey = [288, 71503];
 
   const answer = runDay6Logic(day6TestData);
   
